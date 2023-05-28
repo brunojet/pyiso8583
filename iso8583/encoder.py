@@ -102,6 +102,8 @@ def encode(doc_dec: DecodedDict, spec: SpecDict) -> Tuple[bytearray, EncodedDict
 # Private interface
 #
 
+
+_FieldDecDict = Mapping[str, Any]
 _FieldSpecDict = Mapping[str, Any]
 
 
@@ -484,7 +486,7 @@ def _encode_bindary_field(
     try:
         # Odd length nibbles need to be padded because it's not possible to send half a byte
         if len_count == "nibbles" and len(doc_dec[field_key]) & 1:
-            data_to_encode = _add_pad_field(doc_dec, field_key, field_spec)
+            data_to_encode = _add_pad_field(doc_dec[field_key], field_spec)
         else:
             data_to_encode = doc_dec[field_key]
         doc_enc[field_key]["data"] = binascii.a2b_hex(data_to_encode)
@@ -519,16 +521,15 @@ def _encode_bindary_field(
 
 
 def _add_pad_field(
-    doc_dec: DecodedDict,
-    field_key: str,
+    field_dec: _FieldDecDict,
     field_spec: _FieldSpecDict,
 ) -> str:
     r"""Pad a BCD or hex field from the left or right.
 
     Parameters
     ----------
-    doc_dec : dict
-        Dict containing decoded ISO8583 data
+    field_dec : dict
+        Dict containing decoded ISO8583 data for this field
     field_key : str
         Field ID to pad
     field_spec : dict
@@ -542,13 +543,13 @@ def _add_pad_field(
     """
     pad: str = field_spec.get("left_pad", "")[:1]
     if len(pad) > 0:
-        return pad + doc_dec[field_key]
+        return pad + field_dec
 
     pad = field_spec.get("right_pad", "")[:1]
     if len(pad) > 0:
-        return doc_dec[field_key] + pad
+        return field_dec + pad
 
-    return doc_dec[field_key]
+    return field_dec
 
 
 def _encode_text_field(

@@ -587,16 +587,18 @@ def _remove_pad_field(
     DecodeError
         An error decoding ISO8583 bytearray.
     """
+    field_dec = doc_dec[field_key]
+
     pad: str = field_spec.get("left_pad", "")[:1]
-    if len(pad) > 0 and doc_dec[field_key][:1] == pad:
-        return doc_dec[field_key][1:]
+    if len(pad) > 0 and field_dec[:1] == pad:
+        return field_dec[1:]
 
     pad = field_spec.get("right_pad", "")[:1]
-    if len(pad) > 0 and doc_dec[field_key][-1:] == pad:
-        return doc_dec[field_key][:-1]
+    if len(pad) > 0 and field_dec[-1:] == pad:
+        return field_dec[:-1]
 
     raise DecodeError(
-        f"Field data is {len(doc_dec[field_key])} nibbles, expecting {enc_field_len}",
+        f"Field data is {len(field_dec)} nibbles, expecting {enc_field_len}",
         s,
         doc_dec,
         doc_enc,
