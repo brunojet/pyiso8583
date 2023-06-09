@@ -8,6 +8,20 @@ EncodedDict = Dict[str, Dict[str, bytes]]
 SpecDict = Mapping[str, Mapping[str, Any]]
 
 
+def _bitmap_len(field: dict, subfield_encode: bool = False) -> Tuple[int, int]:
+    bitmap_len = 8
+
+    if subfield_encode:
+        try:
+            bitmap_len = field["max_len"]
+
+            if field["data_enc"] in {"ascii", "cp500"}:
+                bitmap_len //= 2
+        except KeyError:
+            pass
+
+    return bitmap_len, (bitmap_len * 8)
+
 class EncodeError(ValueError):
     r"""Subclass of ValueError that describes ISO8583 encoding error.
 
@@ -228,8 +242,11 @@ def _encode_bitmaps(
         An error encoding ISO8583 bytearray.
     """
 
+    bitmap_p_len, bitmap_p_fields = _bitmap_len(spec["p"])
+
     # Secondary bitmap will be calculated as needed
     doc_dec.pop("1", None)
+    bitmap_s_len, bitmap_s_fields = _bitmap_len(spec["1"])
 
     # Primary and secondary bitmaps will be created from the keys
     try:
@@ -242,23 +259,27 @@ def _encode_bitmaps(
             "p",
         ) from None
 
-    # Bitmap must consist of 1-128 field range
-    if not fields.issubset(range(1, 129)):
+    max_fields_range = bitmap_p_fields + bitmap_s_fields + 1
+
+    # Bitmap must consist of max_fields_range field range
+    if not fields.issubset(range(1, max_fields_range)):
         raise EncodeError(
-            f"Dictionary contains fields outside of 1-128 range {sorted(fields.difference(range(1, 129)))}",
+            f"Dictionary contains fields outside of 1-128 range {sorted(fields.difference(range(1, max_fields_range)))}",
             doc_dec,
             doc_enc,
             "p",
         )
 
-    # Add secondary bitmap if any 65-128 fields are present
-    if not fields.isdisjoint(range(65, 129)):
+    # Add secondary bitmap if any bitmap_p_fields-max_fields_range fields are present
+    if not fields.isdisjoint(range(bitmap_p_fields + 1, max_fields_range)):
         fields.add(1)
+
+    max_bitmap_len = bitmap_p_len + bitmap_s_len
 
     # Turn on bitmap bits of associated fields.
     # There is no need to sort this set because the code below will
     # figure out appropriate byte/bit for each field.
-    s = bytearray(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
+    s = bytearray(max_bitmap_len)
 
     for f in fields:
         # Fields start at 1. Make them zero-bound for easier conversion.
@@ -274,11 +295,11 @@ def _encode_bitmaps(
         s[byte] |= 1 << bit
 
     # Encode primary bitmap
-    doc_dec["p"] = s[0:8].hex().upper()
+    doc_dec["p"] = s[0:bitmap_p_len].hex().upper()
     doc_enc["p"] = {"len": b"", "data": b""}
 
     if spec["p"]["data_enc"] == "b":
-        doc_enc["p"]["data"] = bytes(s[0:8])
+        doc_enc["p"]["data"] = bytes(s[0:bitmap_p_len])
     else:
         _encode_text_field(doc_dec, doc_enc, "p", spec["p"], "bytes")
 
@@ -287,11 +308,11 @@ def _encode_bitmaps(
         return doc_enc["p"]["data"]
 
     # Encode secondary bitmap
-    doc_dec["1"] = s[8:16].hex().upper()
+    doc_dec["1"] = s[bitmap_p_len:max_bitmap_len].hex().upper()
     doc_enc["1"] = {"len": b"", "data": b""}
 
     if spec["1"]["data_enc"] == "b":
-        doc_enc["1"]["data"] = bytes(s[8:16])
+        doc_enc["1"]["data"] = bytes(s[bitmap_p_len:max_bitmap_len])
     else:
         _encode_text_field(doc_dec, doc_enc, "1", spec["1"], "bytes")
 

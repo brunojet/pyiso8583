@@ -108,14 +108,15 @@ def decode(
     doc_enc: EncodedDict = {}
     fields: Set[int] = set()
     idx = 0
+    bitmap_bits_offset = 0
 
     idx = _decode_header(s, doc_dec, doc_enc, idx, spec)
     idx = _decode_type(s, doc_dec, doc_enc, idx, spec)
-    idx = _decode_bitmap(s, doc_dec, doc_enc, idx, "p", spec, fields)
+    idx, bitmap_bits_offset = _decode_bitmap(s, doc_dec, doc_enc, idx, "p", spec, fields)
 
     # No need to produce secondary bitmap if it's not required
     if 1 in fields:
-        idx = _decode_bitmap(s, doc_dec, doc_enc, idx, "1", spec, fields)
+        idx = _decode_bitmap(s, doc_dec, doc_enc, idx, "1", spec, fields, bitmap_bits_offset)[0]
 
     return _decode_fields(s, doc_dec, doc_enc, idx, spec, fields)
 
@@ -245,7 +246,9 @@ def _decode_bitmap(
     field_key: str,
     spec: SpecDict,
     fields: Set[int],
-) -> int:
+    bitmap_bits_offset: int = 0,
+    subfield_decode: bool = False
+) -> Tuple[int, int]:
     r"""Decode ISO8583 a bitmap.
 
     Parameters
@@ -265,11 +268,13 @@ def _decode_bitmap(
         Field ID to be decoded
     fields: set
         Will be populated with enabled field numbers
+    bitmap_bits_offset: set
+        Last bitmap bits offset
 
     Returns
     -------
-    int
-        Index in ISO8583 byte array where parsing of bitmaps ended
+    Tuple[int, int]
+        Index in ISO8583 byte array where parsing of bitmaps ended and update bitmap bits offset
 
     Raises
     ------
@@ -277,13 +282,23 @@ def _decode_bitmap(
         An error decoding ISO8583 bytearray.
     """
 
-    # Primary/Secondary bitmap is a set length in ISO8583
-    if spec[field_key]["data_enc"] == "b":
+    # Primary bitmap is a set length in ISO8583
+    field_spec = spec[field_key]
+	
+    if field_spec["data_enc"] == "b":
         expected_field_len = 8
     else:
         expected_field_len = 16
+    bitmap_bits_len = 64
 
-    offset = 0 if field_key == "p" else 64
+    if subfield_decode:
+        try:
+            expected_field_len = field_spec["max_len"]
+            bitmap_bits_len = (expected_field_len * 8)
+            if field_spec["data_enc"] in {"ascii", "cp500"}:
+                bitmap_bits_len //= 2
+        except KeyError:
+            pass
 
     doc_dec[field_key] = ""
     doc_enc[field_key] = {"len": b"", "data": bytes(s[idx : idx + expected_field_len])}
@@ -298,7 +313,7 @@ def _decode_bitmap(
             field_key,
         )
 
-    if spec[field_key]["data_enc"] == "b":
+    if field_spec["data_enc"] == "b":
         doc_dec[field_key] = s[idx : idx + expected_field_len].hex().upper()
         bitmap = s[idx : idx + expected_field_len]
     else:
@@ -309,7 +324,7 @@ def _decode_bitmap(
             doc_dec,
             doc_enc,
             field_key,
-            spec[field_key],
+            field_spec,
         )
 
         try:
@@ -326,14 +341,14 @@ def _decode_bitmap(
 
     fields.update(
         [
-            offset + byte_idx * 8 + bit
+            bitmap_bits_offset + byte_idx * 8 + bit
             for bit in range(1, 9)
             for byte_idx, byte in enumerate(bitmap)
             if byte >> (8 - bit) & 1
         ]
     )
 
-    return idx + expected_field_len
+    return idx + expected_field_len, bitmap_bits_offset + bitmap_bits_len
 
 
 def _decode_field(
