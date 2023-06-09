@@ -117,24 +117,7 @@ def decode(
     if 1 in fields:
         idx = _decode_bitmap(s, doc_dec, doc_enc, idx, "1", spec, fields)
 
-    # `field_key` can be used to throw an exception after the loop.
-    # So, create it here in case the `fields` set is empty
-    # and never enters the loop to create the variable.
-    # Set `field_key` to the last mandatory one: primary bitmap.
-    field_key = "p"
-
-    for field_key in [str(i) for i in sorted(fields)]:
-        # Secondary bitmap is already decoded
-        if field_key == "1":
-            continue
-        idx = _decode_field(s, doc_dec, doc_enc, idx, field_key, spec[field_key])
-
-    if idx != len(s):
-        raise DecodeError(
-            "Extra data after last field", s, doc_dec, doc_enc, idx, field_key
-        )
-
-    return doc_dec, doc_enc
+    return _decode_fields(s, doc_dec, doc_enc, idx, spec, fields)
 
 
 #
@@ -359,7 +342,7 @@ def _decode_field(
     doc_enc: EncodedDict,
     idx: int,
     field_key: str,
-    field_spec: _FieldSpecDict,
+    field_spec: _FieldSpecDict
 ) -> int:
     r"""Decode ISO8583 individual fields.
 
@@ -663,3 +646,61 @@ def _decode_text_data(
             idx,
             field_key,
         ) from None
+
+
+def _decode_fields(
+    s: Union[bytes, bytearray],
+    doc_dec: DecodedDict,
+    doc_enc: EncodedDict,
+    idx: int,
+    spec: SpecDict,
+    fields: Set[int]
+) -> Tuple[DecodedDict, EncodedDict]:
+    r"""Decode ISO8583 fields.
+
+    Parameters
+    ----------
+    s : bytes or bytearray
+        Encoded ISO8583 data
+    doc_dec : dict
+        Dict containing decoded ISO8583 data
+    doc_enc : dict
+        Dict containing encoded ISO8583 data
+    idx : int
+        Current index in ISO8583 byte array
+    field_key : str
+        Field ID to be decoded
+    fields : Set[int]
+        Field list to be decoded
+
+    Returns
+    -------
+    int
+        Index in ISO8583 byte array where parsing of the field ended
+
+    Raises
+    ------
+    DecodeError
+        An error decoding ISO8583 bytearray.
+    """
+
+    field_key = "p"
+
+    # `field_key` can be used to throw an exception after the loop.
+    # So, create it here in case the `fields` set is empty
+    # and never enters the loop to create the variable.
+    # Set `field_key` to the last mandatory one: primary bitmap.
+    for field_key in [str(i) for i in sorted(fields)]:
+        # Secondary bitmap is already decoded in _decode_bitmaps
+        if field_key == "1":
+            continue
+
+        idx = _decode_field(s, doc_dec, doc_enc, idx, field_key, spec[field_key])
+
+    if idx != len(s):
+        raise DecodeError(
+            "Extra data after last field", s, doc_dec, doc_enc, idx, field_key
+        )
+
+    return doc_dec, doc_enc
+

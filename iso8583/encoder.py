@@ -89,14 +89,7 @@ def encode(doc_dec: DecodedDict, spec: SpecDict) -> Tuple[bytearray, EncodedDict
     s += _encode_type(doc_dec, doc_enc, spec)
     s += _encode_bitmaps(doc_dec, doc_enc, spec, fields)
 
-    for field_key in [str(i) for i in sorted(fields)]:
-        # Secondary bitmap is already encoded in _encode_bitmaps
-        if field_key == "1":
-            continue
-        s += _encode_field(doc_dec, doc_enc, field_key, spec[field_key])
-
-    return s, doc_enc
-
+    return _encode_fields(s, doc_dec, doc_enc, spec, fields)
 
 #
 # Private interface
@@ -606,3 +599,48 @@ def _encode_text_field(
         return len(doc_enc[field_key]["data"]) * 2
     else:
         return len(doc_enc[field_key]["data"])
+
+
+def _encode_fields(
+    s: bytearray,
+    doc_dec: DecodedDict,
+    doc_enc: EncodedDict,
+    spec: SpecDict,
+    fields: Set[int]
+):
+    r"""Encode ISO8583 fields from doc_dec.
+
+    Parameters
+    ----------
+    s : bytearray
+        Encoded ISO8583 data
+    doc_dec : dict
+        Dict containing decoded ISO8583 data
+    doc_enc : dict
+        Dict containing encoded ISO8583 data
+    spec : dict
+        A Python dict defining ISO8583 specification.
+        See :mod:`iso8583.specs` module for examples.
+    fields: set
+        Will be populated with enabled field numbers
+
+    Returns
+    -------
+    bytes
+        Encoded ISO8583 field data
+
+    Raises
+    ------
+    EncodeError
+        An error encoding ISO8583 bytearray.
+    """
+
+    for field_key in [str(i) for i in sorted(fields)]:
+        # Secondary bitmap is already encoded in _encode_bitmaps
+        if field_key == "1":
+            continue
+
+        s += _encode_field(doc_dec, doc_enc, field_key, spec[field_key])
+
+    return s, doc_enc
+
