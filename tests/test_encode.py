@@ -1,3 +1,4 @@
+from typing import Dict, MutableMapping, Union, Collection
 import copy
 import pickle
 import typing
@@ -6,6 +7,8 @@ import iso8583
 import iso8583.specs
 import pytest
 
+DecodedDict = MutableMapping[str, Union[Collection[str],str]]
+EncodedDict = Dict[str, Dict[str, bytes]]
 
 def test_EncodeError_exception() -> None:
     """
@@ -719,3 +722,149 @@ def test_field_length_encoding_negative(
     with pytest.raises(iso8583.EncodeError) as e:
         t = iso8583.encode(doc_dec, spec=spec)
     assert e.value.args[0] == expected_error
+
+
+def test_binary_subfield_valid() -> None:
+    """
+    Message with valid subfield present.
+    """
+    subspec = {
+        "p": {"data_enc": "b", "len_type": 0, "max_len": 8},
+        "1": {"data_enc": "cp500", "len_type": 0, "max_len": 1},
+        "2": {"data_enc": "b", "len_type": 0, "max_len": 15, "len_count": "nibbles", "left_pad": "0"},
+        "3": {"data_enc": "b", "len_type": 0, "max_len": 4}
+    }
+
+    spectest = copy.deepcopy(iso8583.specs.default)
+    spectest["h"]["max_len"] = 6
+    spectest["62"]["data_enc"] = "b"
+    spectest["62"]["len_enc"] = "b"
+    spectest["62"]["len_type"] = 1
+    spectest["62"]["max_len"] = 255
+    spectest["62"]["subspec"] = subspec
+
+    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+        "1": "Y", "2": "123456789012345", "3": "11223344"}}
+
+    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+
+    assert s == b"header0210\x40\x00\x00\x00\x00\x00\x00\x04\x30\x34\x31\x31\x32\x32\x15\xe0\x00\x00\x00\x00\x00\x00\x00\xe8\x01\x23\x45\x67\x89\x01\x23\x45\x11\x22\x33\x44"
+
+    assert doc_enc["h"]["len"] == b""
+    assert doc_enc["h"]["data"] == b"header"
+    assert doc_dec["h"] == "header"
+
+    assert doc_enc["t"]["len"] == b""
+    assert doc_enc["t"]["data"] == b"0210"
+    assert doc_dec["t"] == "0210"
+
+    assert doc_enc["p"]["len"] == b""
+    assert doc_enc["p"]["data"] == b"\x40\x00\x00\x00\x00\x00\x00\x04"
+    assert doc_dec["p"] == "4000000000000004"
+
+    assert doc_enc["2"]["len"] == b"\x30\x34"
+    assert doc_enc["2"]["data"] == b"\x31\x31\x32\x32"
+    assert doc_dec["2"] == "1122"
+
+    f62_enc: EncodedDict = doc_enc["62"]  # type: ignore[assignment]
+    f62_dec: DecodedDict = doc_dec["62"]  # type: ignore[assignment]
+
+    assert f62_enc["1"]["len"] == b""
+    assert f62_enc["1"]["data"] == b"\xe8"
+    assert f62_dec["1"] == "Y"
+
+    assert f62_enc["2"]["len"] == b""
+    assert f62_enc["2"]["data"] == b"\x01\x23\x45\x67\x89\x01\x23\x45"
+    assert f62_dec["2"] == "123456789012345"
+
+    assert f62_enc["3"]["len"] == b""
+    assert f62_enc["3"]["data"] == b"\x11\x22\x33\x44"
+    assert f62_dec["3"] == "11223344"
+
+    assert doc_enc.keys() == set(["h", "t", "p", "2", "62"])
+    assert doc_dec.keys() == set(["h", "t", "p", "2", "62"])
+
+
+def test_binary_subfield_subspec_absent() -> None:
+    """
+    Message with subfield present.
+    However, the subspec is missing.
+    """
+    spectest = copy.deepcopy(iso8583.specs.default)
+    spectest["h"]["max_len"] = 6
+    spectest["62"]["data_enc"] = "b"
+    spectest["62"]["len_enc"] = "b"
+    spectest["62"]["len_type"] = 1
+    spectest["62"]["max_len"] = 255
+
+    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+        "1": "Y", "2": "123456789012345", "3": "11223344"}}
+
+    with pytest.raises(
+        iso8583.EncodeError,
+        match="Failed to encode field, subspec missing: field 62",
+    ):
+        iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+
+
+def test_bitmap_max_len_absent() -> None:
+    """
+    Bitmap max_len absent.
+    The encoder use default value for bitmap encoding.
+    """
+
+    subspec = {
+        "p": {"data_enc": "b", "len_type": 0},
+        "1": {"data_enc": "cp500", "len_type": 0, "max_len": 1},
+        "2": {"data_enc": "b", "len_type": 0, "max_len": 15, "len_count": "nibbles", "left_pad": "0"},
+        "3": {"data_enc": "b", "len_type": 0, "max_len": 4}
+    }
+
+    spectest = copy.deepcopy(iso8583.specs.default)
+    spectest["h"]["max_len"] = 6
+    spectest["62"]["data_enc"] = "b"
+    spectest["62"]["len_enc"] = "b"
+    spectest["62"]["len_type"] = 1
+    spectest["62"]["max_len"] = 255
+    spectest["62"]["subspec"] = subspec
+
+    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+        "1": "Y", "2": "123456789012345", "3": "11223344"}}
+
+    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+
+    assert s == b"header0210\x40\x00\x00\x00\x00\x00\x00\x04\x30\x34\x31\x31\x32\x32\x15\xe0\x00\x00\x00\x00\x00\x00\x00\xe8\x01\x23\x45\x67\x89\x01\x23\x45\x11\x22\x33\x44"
+
+    assert doc_enc["h"]["len"] == b""
+    assert doc_enc["h"]["data"] == b"header"
+    assert doc_dec["h"] == "header"
+
+    assert doc_enc["t"]["len"] == b""
+    assert doc_enc["t"]["data"] == b"0210"
+    assert doc_dec["t"] == "0210"
+
+    assert doc_enc["p"]["len"] == b""
+    assert doc_enc["p"]["data"] == b"\x40\x00\x00\x00\x00\x00\x00\x04"
+    assert doc_dec["p"] == "4000000000000004"
+
+    assert doc_enc["2"]["len"] == b"\x30\x34"
+    assert doc_enc["2"]["data"] == b"\x31\x31\x32\x32"
+    assert doc_dec["2"] == "1122"
+
+    f62_enc: EncodedDict = doc_enc["62"]  # type: ignore[assignment]
+    f62_dec: DecodedDict = doc_dec["62"]  # type: ignore[assignment]
+
+    assert f62_enc["1"]["len"] == b""
+    assert f62_enc["1"]["data"] == b"\xe8"
+    assert f62_dec["1"] == "Y"
+
+    assert f62_enc["2"]["len"] == b""
+    assert f62_enc["2"]["data"] == b"\x01\x23\x45\x67\x89\x01\x23\x45"
+    assert f62_dec["2"] == "123456789012345"
+
+    assert f62_enc["3"]["len"] == b""
+    assert f62_enc["3"]["data"] == b"\x11\x22\x33\x44"
+    assert f62_dec["3"] == "11223344"
+
+    assert doc_enc.keys() == set(["h", "t", "p", "2", "62"])
+    assert doc_dec.keys() == set(["h", "t", "p", "2", "62"])

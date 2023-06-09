@@ -8,19 +8,19 @@ EncodedDict = Dict[str, Dict[str, bytes]]
 SpecDict = Mapping[str, Mapping[str, Any]]
 
 
-def _bitmap_len(field: dict, subfield_encode: bool = False) -> Tuple[int, int]:
+def _bitmap_len(field: Mapping[str, Any]) -> Tuple[int, int]:
     bitmap_len = 8
 
-    if subfield_encode:
-        try:
-            bitmap_len = field["max_len"]
+    try:
+        bitmap_len = field["max_len"]
 
-            if field["data_enc"] in {"ascii", "cp500"}:
-                bitmap_len //= 2
-        except KeyError:
-            pass
+        if field["data_enc"] in {"ascii", "cp500"}:
+            bitmap_len //= 2
+    except KeyError:
+        pass
 
     return bitmap_len, (bitmap_len * 8)
+
 
 class EncodeError(ValueError):
     r"""Subclass of ValueError that describes ISO8583 encoding error.
@@ -110,7 +110,6 @@ def encode(doc_dec: DecodedDict, spec: SpecDict) -> Tuple[bytearray, EncodedDict
 #
 
 
-_FieldDecDict = Mapping[str, Any]
 _FieldSpecDict = Mapping[str, Any]
 
 
@@ -196,7 +195,7 @@ def _encode_type(
     doc_enc["t"] = {"len": b"", "data": b""}
 
     if spec["t"]["data_enc"] == "b":
-        enc_field_len = _encode_bindary_field(doc_dec, doc_enc, "t", spec["t"], "bytes")
+        enc_field_len = _encode_binary_field(doc_dec, doc_enc, "t", spec["t"], "bytes")
     else:
         enc_field_len = _encode_text_field(doc_dec, doc_enc, "t", spec["t"], "bytes")
 
@@ -216,6 +215,7 @@ def _encode_bitmaps(
     doc_enc: EncodedDict,
     spec: SpecDict,
     fields: Set[int],
+    subfield_encode: bool = False
 ) -> bytes:
     r"""Encode ISO8583 primary and secondary bitmap from dictionary keys.
 
@@ -230,6 +230,8 @@ def _encode_bitmaps(
         See :mod:`iso8583.specs` module for examples.
     fields: set
         Will be populated with enabled field numbers
+    subfield_encode: bool
+        Indicates a subfield processing
 
     Returns
     -------
@@ -242,11 +244,18 @@ def _encode_bitmaps(
         An error encoding ISO8583 bytearray.
     """
 
-    bitmap_p_len, bitmap_p_fields = _bitmap_len(spec["p"])
+    bitmap_p_len = 8
+    bitmap_p_fields = 64
+    bitmap_s_len = 8
+    bitmap_s_fields = 64
 
-    # Secondary bitmap will be calculated as needed
-    doc_dec.pop("1", None)
-    bitmap_s_len, bitmap_s_fields = _bitmap_len(spec["1"])
+    if not subfield_encode:
+        # Secondary bitmap will be calculated as needed
+        doc_dec.pop("1", None)
+    else:
+        bitmap_p_len, bitmap_p_fields = _bitmap_len(spec["p"])
+        bitmap_s_len = 0
+        bitmap_s_fields = 0
 
     # Primary and secondary bitmaps will be created from the keys
     try:
@@ -273,6 +282,8 @@ def _encode_bitmaps(
     # Add secondary bitmap if any bitmap_p_fields-max_fields_range fields are present
     if not fields.isdisjoint(range(bitmap_p_fields + 1, max_fields_range)):
         fields.add(1)
+    else:
+        bitmap_s_len = 0
 
     max_bitmap_len = bitmap_p_len + bitmap_s_len
 
@@ -304,7 +315,7 @@ def _encode_bitmaps(
         _encode_text_field(doc_dec, doc_enc, "p", spec["p"], "bytes")
 
     # No need to produce secondary bitmap if it's not required
-    if 1 not in fields:
+    if not bitmap_s_len:
         return doc_enc["p"]["data"]
 
     # Encode secondary bitmap
@@ -323,7 +334,7 @@ def _encode_field(
     doc_dec: DecodedDict,
     doc_enc: EncodedDict,
     field_key: str,
-    field_spec: _FieldSpecDict,
+    field_spec: _FieldSpecDict
 ) -> bytes:
     r"""Encode ISO8583 individual field from `doc_dec[field_key]`.
 
@@ -358,7 +369,7 @@ def _encode_field(
 
     # Binary data: either hex or BCD
     if field_spec["data_enc"] == "b":
-        enc_field_len = _encode_bindary_field(
+        enc_field_len = _encode_binary_field(
             doc_dec,
             doc_enc,
             field_key,
@@ -466,7 +477,7 @@ def _encode_field(
     return doc_enc[field_key]["len"] + doc_enc[field_key]["data"]
 
 
-def _encode_bindary_field(
+def _encode_binary_field(
     doc_dec: DecodedDict,
     doc_enc: EncodedDict,
     field_key: str,
@@ -535,7 +546,7 @@ def _encode_bindary_field(
 
 
 def _add_pad_field(
-    field_dec: _FieldDecDict,
+    field_dec: str,
     field_spec: _FieldSpecDict,
 ) -> str:
     r"""Pad a BCD or hex field from the left or right.
@@ -627,8 +638,9 @@ def _encode_fields(
     doc_dec: DecodedDict,
     doc_enc: EncodedDict,
     spec: SpecDict,
-    fields: Set[int]
-):
+    fields: Set[int],
+    subfield_encode: bool = False
+) -> Tuple[bytearray, EncodedDict]:
     r"""Encode ISO8583 fields from doc_dec.
 
     Parameters
@@ -644,6 +656,8 @@ def _encode_fields(
         See :mod:`iso8583.specs` module for examples.
     fields: set
         Will be populated with enabled field numbers
+    subfield_encode: bool
+        Indicates a subfield processing
 
     Returns
     -------
@@ -657,11 +671,74 @@ def _encode_fields(
     """
 
     for field_key in [str(i) for i in sorted(fields)]:
-        # Secondary bitmap is already encoded in _encode_bitmaps
-        if field_key == "1":
-            continue
+        if not subfield_encode:
+            # Secondary bitmap is already encoded in _encode_bitmaps
+            if field_key == "1":
+                continue
+
+            if isinstance(doc_dec[field_key], dict):
+                s += _encode_subfield(doc_dec, doc_enc, field_key, spec)
+                continue
 
         s += _encode_field(doc_dec, doc_enc, field_key, spec[field_key])
 
     return s, doc_enc
 
+
+def _encode_subfield(
+    doc_dec: DecodedDict,
+    doc_enc: EncodedDict,
+    field_key: str,
+    spec: SpecDict
+) -> bytes:
+    r"""Serialize Python dict containing ISO8583 subfield data to a bytearray.
+
+    Parameters
+    ----------
+    doc_dec : dict
+        Dict containing decoded ISO8583 data
+    doc_enc : dict
+        Dict containing encoded ISO8583 data
+    field_key : str
+        Field ID to be decoded
+    spec : dict
+        A Python dict defining ISO8583 specification.
+        See :mod:`iso8583.specs` module for examples.
+
+    Returns
+    -------
+    bytes
+        Encoded ISO8583 field data
+
+    Raises
+    ------
+    EncodeError
+        An error encoding ISO8583 bytearray
+    TypeError
+        `doc_dec` must be a dict instance
+    """
+
+    try:
+        subspec: SpecDict = spec[field_key]["subspec"]
+    except KeyError:
+        raise EncodeError(
+            "Failed to encode field, subspec missing",
+            doc_dec,
+            doc_enc,
+            field_key,
+        ) from None
+
+    subfield_dec: DecodedDict = doc_dec[field_key]  # type: ignore[assignment]
+    subfield_enc: EncodedDict = {}
+    fields: Set[int] = set()
+
+    s = _encode_bitmaps(subfield_dec, subfield_enc, subspec, fields, True)
+
+    doc_dec[field_key] = _encode_fields(s, subfield_dec, subfield_enc, subspec, fields, True)[0].hex()  # type: ignore[arg-type]
+
+    b = _encode_field(doc_dec, doc_enc, field_key, spec[field_key])
+
+    doc_enc[field_key] = subfield_enc  # type: ignore[assignment]
+    doc_dec[field_key] = subfield_dec  # type: ignore[assignment]
+
+    return b
