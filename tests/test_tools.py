@@ -1,3 +1,4 @@
+from typing import Dict, MutableMapping, Union, Collection
 import copy
 from io import StringIO
 
@@ -6,13 +7,15 @@ import iso8583.specs
 import typing
 from iso8583.tools import _wrap_bytes_repr, _wrap_str_repr
 
+DecodedDict = MutableMapping[str, Union[Collection[str],str]]
+
 
 def test_pp(capsys: typing.Any) -> None:
     # fmt: off
     spec = copy.deepcopy(iso8583.specs.default)
     spec["h"]["max_len"] = 6
     spec["h"]["len_type"] = 0
-    doc_dec: typing.Dict[str, str] = {}
+    doc_dec: DecodedDict = {}
     iso8583.pp(doc_dec, spec)
 
     captured = capsys.readouterr()
@@ -62,7 +65,7 @@ def test_pp_variable_header(capsys: typing.Any) -> None:
     spec = copy.deepcopy(iso8583.specs.default)
     spec["h"]["max_len"] = 6
     spec["h"]["len_type"] = 2
-    doc_dec = {}
+    doc_dec: DecodedDict = {}
     doc_dec["h"] = "header"
     doc_dec["t"] = "0200"
     doc_dec["2"] = "12345678"
@@ -132,7 +135,7 @@ def test_pp_stream() -> None:
     spec = copy.deepcopy(iso8583.specs.default)
     spec["h"]["max_len"] = 6
     spec["h"]["len_type"] = 0
-    doc_dec = {}
+    doc_dec: DecodedDict = {}
     doc_dec["h"] = "header"
     doc_dec["t"] = "0200"
     doc_dec["2"] = "12345678"
@@ -175,7 +178,7 @@ def test_pp_optional_fields() -> None:
     spec["h"]["len_type"] = 0
 
     # Empty
-    doc_dec: typing.Dict[str, str] = {}
+    doc_dec: DecodedDict = {}
 
     sio = StringIO()
     iso8583.pp(doc_dec, spec, stream=sio)
@@ -260,7 +263,7 @@ def test_pp_header_present_but_not_in_spec() -> None:
     spec["h"]["len_type"] = 0
 
     # Empty
-    doc_dec: typing.Dict[str, str] = {}
+    doc_dec: DecodedDict = {}
 
     sio = StringIO()
     iso8583.pp(doc_dec, spec, stream=sio)
@@ -298,7 +301,7 @@ def test_pp_no_desc() -> None:
     spec["h"]["max_len"] = 0
     spec["h"]["len_type"] = 0
 
-    doc_dec = {}
+    doc_dec: DecodedDict = {}
     doc_dec["t"] = "0200"
     doc_dec["2"] = "12345678"
     doc_dec["44"] = "123"
@@ -337,7 +340,7 @@ def test_pp_folding() -> None:
     spec["h"]["max_len"] = 0
     spec["h"]["len_type"] = 0
 
-    doc_dec = {}
+    doc_dec: DecodedDict = {}
     doc_dec["t"] = "0200"
     doc_dec["123"] = "123456789012345678901234567890123456789012345678901234567890"
     _, doc_enc = iso8583.encode(doc_dec, spec)
@@ -731,7 +734,7 @@ def test_pp_invalid_types() -> None:
     spec["h"]["max_len"] = 0
     spec["h"]["len_type"] = 0
 
-    doc_dec: typing.Dict[str, str] = {}
+    doc_dec: DecodedDict = {}
     doc_dec["t"] = [1, 2, 3, 4] # type: ignore
     doc_dec["123"] = set([1, 2, 3]) # type: ignore
 
@@ -754,11 +757,11 @@ def test_pp_invalid_types() -> None:
     assert len(r) == 3
 
     # invalid encoded data
-    doc_enc: typing.Dict[str, str] = {}
-    doc_enc["t"] = {} # type: ignore
-    doc_enc["1"] = {"len": b"len"} # type: ignore
-    doc_enc["2"] = {"data": b"data"} # type: ignore
-    doc_enc["3"] = {"spam": b"eggs"} # type: ignore
+    doc_enc: DecodedDict = {}
+    doc_enc["t"] = {}
+    doc_enc["1"] = {"len": b"len"}
+    doc_enc["2"] = {"data": b"data"}
+    doc_enc["3"] = {"spam": b"eggs"}
 
     sio = StringIO()
     iso8583.pp(doc_enc, spec, stream=sio, line_width=80)

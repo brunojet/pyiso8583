@@ -23,7 +23,7 @@ def test_EncodeError_exception() -> None:
     spec["1"]["len_type"] = 0
     spec["1"]["max_len"] = 0
 
-    doc_dec = {"t": ""}
+    doc_dec: DecodedDict = {"t": ""}
 
     try:
         iso8583.encode(doc_dec, spec=spec)
@@ -50,7 +50,7 @@ def test_EncodeError_exception_pickle() -> None:
     spec["1"]["len_type"] = 0
     spec["1"]["max_len"] = 0
 
-    doc_dec = {"t": ""}
+    doc_dec: DecodedDict = {"t": ""}
 
     try:
         iso8583.encode(doc_dec, spec=spec)
@@ -128,7 +128,7 @@ def test_header_no_key() -> None:
     spec["1"]["len_type"] = 0
     spec["1"]["max_len"] = 0
 
-    doc_dec = {"t": ""}
+    doc_dec: DecodedDict = {"t": ""}
 
     with pytest.raises(
         iso8583.EncodeError,
@@ -147,7 +147,7 @@ def test_header_absent() -> None:
     spec["t"]["data_enc"] = "ascii"
     spec["p"]["data_enc"] = "b"
 
-    doc_dec = {"h": "", "t": "0200"}
+    doc_dec: DecodedDict = {"h": "", "t": "0200"}
 
     s, doc_enc = iso8583.encode(doc_dec, spec=spec)
 
@@ -175,7 +175,7 @@ def test_header_present() -> None:
     spec["t"]["data_enc"] = "ascii"
     spec["p"]["data_enc"] = "b"
 
-    doc_dec = {"h": "header", "t": "0200"}
+    doc_dec: DecodedDict = {"h": "header", "t": "0200"}
 
     s, doc_enc = iso8583.encode(doc_dec, spec=spec)
 
@@ -208,7 +208,7 @@ def test_header_not_required_provided() -> None:
     spec["t"]["data_enc"] = "ascii"
     spec["p"]["data_enc"] = "b"
 
-    doc_dec = {"h": "header", "t": "0200"}
+    doc_dec: DecodedDict = {"h": "header", "t": "0200"}
 
     s, doc_enc = iso8583.encode(doc_dec, spec=spec)
 
@@ -239,7 +239,7 @@ def test_type_no_key() -> None:
     spec["1"]["len_type"] = 0
     spec["1"]["max_len"] = 0
 
-    doc_dec = {"h": "header", "2": ""}
+    doc_dec: DecodedDict = {"h": "header", "2": ""}
 
     with pytest.raises(iso8583.EncodeError, match="Field data is required: field t"):
         iso8583.encode(doc_dec, spec=spec)
@@ -277,7 +277,7 @@ def test_type_encoding_negative(
     spec["t"]["data_enc"] = data_enc
     spec["t"]["len_enc"] = "ascii"
 
-    doc_dec = {"t": data}
+    doc_dec: DecodedDict = {"t": data}
 
     with pytest.raises(iso8583.EncodeError) as e:
         iso8583.encode(doc_dec, spec=spec)
@@ -360,7 +360,7 @@ def test_bitmap_encoding(
     spec["p"]["data_enc"] = primary_data_enc
     spec["1"]["data_enc"] = secondary_data_enc
 
-    doc_dec = {"t": "0200"}
+    doc_dec: DecodedDict = {"t": "0200"}
     expected_message_payload: typing.List[bytes] = []
 
     for enabled_field in enabled_fields:
@@ -428,7 +428,7 @@ def test_bitmap_encoding_negative(
     spec["p"]["data_enc"] = primary_data_enc
     spec["1"]["data_enc"] = secondary_data_enc
 
-    doc_dec = {"t": "0210"}
+    doc_dec: DecodedDict = {"t": "0210"}
 
     for enabled_field in enabled_fields:
         if enabled_field in spec:
@@ -452,7 +452,7 @@ def test_bitmap_remove_secondary() -> None:
     spec["2"]["len_type"] = 2
     spec["2"]["max_len"] = 19
 
-    doc_dec = {
+    doc_dec: DecodedDict = {
         "t": "0200",
         "1": "not needed",
         "2": "1234567890",
@@ -523,7 +523,7 @@ def test_field_encoding(
     spec["2"]["data_enc"] = data_enc
     spec["2"]["len_enc"] = "ascii"
 
-    doc_dec = {"t": "0210", "2": data}
+    doc_dec: DecodedDict = {"t": "0210", "2": data}
 
     s, doc_enc = iso8583.encode(doc_dec, spec=spec)
 
@@ -598,7 +598,7 @@ def test_field_encoding_negative(
     spec["2"]["data_enc"] = data_enc
     spec["2"]["len_enc"] = "ascii"
 
-    doc_dec = {"t": "0210", "2": data}
+    doc_dec: DecodedDict = {"t": "0210", "2": data}
 
     with pytest.raises(iso8583.EncodeError) as e:
         iso8583.encode(doc_dec, spec=spec)
@@ -668,7 +668,7 @@ def test_field_length_encoding(
     spec["2"]["data_enc"] = "ascii"
     spec["2"]["len_enc"] = len_enc
 
-    doc_dec = {"t": "0210", "2": "a" * data_len}
+    doc_dec: DecodedDict = {"t": "0210", "2": "a" * data_len}
 
     s, doc_enc = iso8583.encode(doc_dec, spec=spec)
 
@@ -717,7 +717,7 @@ def test_field_length_encoding_negative(
     spec["2"]["data_enc"] = "ascii"
     spec["2"]["len_enc"] = len_enc
 
-    doc_dec = {"t": "0210", "2": "a" * data_len}
+    doc_dec: DecodedDict = {"t": "0210", "2": "a" * data_len}
 
     with pytest.raises(iso8583.EncodeError) as e:
         t = iso8583.encode(doc_dec, spec=spec)
@@ -743,10 +743,10 @@ def test_binary_subfield_valid() -> None:
     spectest["62"]["max_len"] = 255
     spectest["62"]["subspec"] = subspec
 
-    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+    doc_dec: DecodedDict = {"h": "header", "t": "0210", "2": "1122", "62": {
         "1": "Y", "2": "123456789012345", "3": "11223344"}}
 
-    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)
 
     assert s == b"header0210\x40\x00\x00\x00\x00\x00\x00\x04\x30\x34\x31\x31\x32\x32\x15\xe0\x00\x00\x00\x00\x00\x00\x00\xe8\x01\x23\x45\x67\x89\x01\x23\x45\x11\x22\x33\x44"
 
@@ -797,14 +797,14 @@ def test_binary_subfield_subspec_absent() -> None:
     spectest["62"]["len_type"] = 1
     spectest["62"]["max_len"] = 255
 
-    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+    doc_dec: DecodedDict = {"h": "header", "t": "0210", "2": "1122", "62": {
         "1": "Y", "2": "123456789012345", "3": "11223344"}}
 
     with pytest.raises(
         iso8583.EncodeError,
         match="Failed to encode field, subspec missing: field 62",
     ):
-        iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+        iso8583.encode(doc_dec, spec=spectest)
 
 
 def test_bitmap_max_len_absent() -> None:
@@ -828,10 +828,10 @@ def test_bitmap_max_len_absent() -> None:
     spectest["62"]["max_len"] = 255
     spectest["62"]["subspec"] = subspec
 
-    doc_dec = {"h": "header", "t": "0210", "2": "1122", "62": {
+    doc_dec: DecodedDict = {"h": "header", "t": "0210", "2": "1122", "62": {
         "1": "Y", "2": "123456789012345", "3": "11223344"}}
 
-    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)  # type: ignore[arg-type]
+    s, doc_enc = iso8583.encode(doc_dec, spec=spectest)
 
     assert s == b"header0210\x40\x00\x00\x00\x00\x00\x00\x04\x30\x34\x31\x31\x32\x32\x15\xe0\x00\x00\x00\x00\x00\x00\x00\xe8\x01\x23\x45\x67\x89\x01\x23\x45\x11\x22\x33\x44"
 

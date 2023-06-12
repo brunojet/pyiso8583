@@ -1,10 +1,12 @@
 """Test length measured in half bytes (nibbles). Nibbles were added in v2.1"""
-
+from typing import Dict, MutableMapping, Union, Collection
 import copy
 
 import iso8583
 import iso8583.specs
 import pytest
+
+DecodedDict = MutableMapping[str, Union[Collection[str],str]]
 
 
 # fmt: off
@@ -45,7 +47,7 @@ def test_encode_nibbles(
     spec["2"]["max_len"] = max_len
     spec["2"]["len_count"] = len_count
 
-    decoded = {"t": "0200", "2": "1234"}
+    decoded: DecodedDict = {"t": "0200", "2": "1234"}
 
     s, encoded = iso8583.encode(decoded, spec)
 
@@ -92,7 +94,7 @@ def test_encode_nibbles_odd_left_pad(
     spec["2"]["len_count"] = len_count
     spec["2"]["left_pad"] = pad
 
-    decoded = {"t": "0200", "2": "123"}
+    decoded: DecodedDict = {"t": "0200", "2": "123"}
 
     s, encoded = iso8583.encode(decoded, spec)
 
@@ -139,7 +141,7 @@ def test_encode_nibbles_odd_right_pad(
     spec["2"]["len_count"] = len_count
     spec["2"]["right_pad"] = pad
 
-    decoded = {"t": "0200", "2": "123"}
+    decoded: DecodedDict = {"t": "0200", "2": "123"}
 
     s, encoded = iso8583.encode(decoded, spec)
 
@@ -158,7 +160,7 @@ def test_encode_nibbles_odd_no_pad() -> None:
     spec["2"]["max_len"] = 8
     spec["2"]["len_count"] = "nibbles"
 
-    decoded = {"t": "0200", "2": "1"}
+    decoded: DecodedDict = {"t": "0200", "2": "1"}
     with pytest.raises(
         iso8583.EncodeError,
         match="Failed to encode field, odd-length nibble data, specify pad: field 2",
@@ -178,7 +180,7 @@ def test_encode_nibbles_non_hex() -> None:
     spec["2"]["len_count"] = "nibbles"
     spec["2"]["right_pad"] = "f"
 
-    decoded = {"t": "0200", "2": "x"}
+    decoded: DecodedDict = {"t": "0200", "2": "x"}
     with pytest.raises(
         iso8583.EncodeError,
         match="Failed to encode field, non-hex data: field 2",
@@ -351,7 +353,7 @@ def test_encode_nibbles_variable_over_max() -> None:
     spec["2"]["max_len"] = 4
     spec["2"]["len_count"] = "nibbles"
 
-    decoded = {"t": "0200", "2": "1234"}
+    decoded: DecodedDict = {"t": "0200", "2": "1234"}
     with pytest.raises(
         iso8583.EncodeError,
         match="Field data is 8 nibbles, larger than maximum 4: field 2",
@@ -371,7 +373,7 @@ def test_encode_nibbles_fixed_partial() -> None:
     spec["2"]["max_len"] = 4
     spec["2"]["len_count"] = "nibbles"
 
-    decoded = {"t": "0200", "2": "1"}
+    decoded: DecodedDict = {"t": "0200", "2": "1"}
     with pytest.raises(
         iso8583.EncodeError,
         match="Field data is 2 nibbles, expecting 4: field 2",
@@ -391,7 +393,7 @@ def test_encode_nibbles_fixed_missing() -> None:
     spec["2"]["max_len"] = 4
     spec["2"]["len_count"] = "nibbles"
 
-    decoded = {"t": "0200", "2": ""}
+    decoded: DecodedDict = {"t": "0200", "2": ""}
     with pytest.raises(
         iso8583.EncodeError,
         match="Field data is 0 nibbles, expecting 4: field 2",

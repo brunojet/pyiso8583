@@ -1,9 +1,10 @@
-from typing import Any, Dict, Mapping, MutableMapping, Set, Tuple, Type
+from typing import Any, Dict, Mapping, MutableMapping, Set, Tuple, Type, Union, Collection
 import binascii
 
 __all__ = ["encode", "EncodeError"]
 
 DecodedDict = MutableMapping[str, str]
+DecodedSubDict = MutableMapping[str, Collection[str]]
 EncodedDict = Dict[str, Dict[str, bytes]]
 SpecDict = Mapping[str, Mapping[str, Any]]
 
@@ -53,7 +54,7 @@ class EncodeError(ValueError):
         return self.__class__, (self.msg, self.doc_dec, self.doc_enc, self.field)
 
 
-def encode(doc_dec: DecodedDict, spec: SpecDict) -> Tuple[bytearray, EncodedDict]:
+def encode(doc_dec: Union[DecodedDict, DecodedSubDict], spec: SpecDict) -> Tuple[bytearray, EncodedDict]:
     r"""Serialize Python dict containing ISO8583 data to a bytearray.
 
     Parameters

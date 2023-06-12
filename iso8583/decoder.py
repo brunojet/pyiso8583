@@ -1,8 +1,9 @@
-from typing import Any, Dict, Mapping, Set, Tuple, Type, Union
+from typing import Any, Dict, Mapping, Set, Tuple, Type, Union, Collection
 
 __all__ = ["decode", "DecodeError"]
 
 DecodedDict = Dict[str, str]
+DecodedSubDict = Dict[str, Collection[str]]
 EncodedDict = Dict[str, Dict[str, bytes]]
 SpecDict = Mapping[str, Mapping[str, Any]]
 
@@ -58,7 +59,7 @@ class DecodeError(ValueError):
 
 def decode(
     s: Union[bytes, bytearray], spec: SpecDict
-) -> Tuple[DecodedDict, EncodedDict]:
+) -> Tuple[Union[DecodedDict, DecodedSubDict], EncodedDict]:
     r"""Deserialize a bytes or bytearray instance containing
     ISO8583 data to a Python dict.
 
@@ -671,7 +672,7 @@ def _decode_fields(
     spec: SpecDict,
     fields: Set[int],
     subfield_decode: bool = False
-) -> Tuple[DecodedDict, EncodedDict]:
+) -> Tuple[Union[DecodedDict, DecodedSubDict], EncodedDict]:
     r"""Decode ISO8583 fields.
 
     Parameters
@@ -734,7 +735,7 @@ def _decode_fields(
 def _decode_subfield(
     s: Union[bytes, bytearray],
     spec: SpecDict
-) -> Tuple[DecodedDict, EncodedDict]:
+) -> Tuple[Union[DecodedDict, DecodedSubDict], EncodedDict]:
     r"""Deserialize a bytes or bytearray instance containing
     ISO8583 subfield data to a Python dict.
 

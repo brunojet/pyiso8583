@@ -1,15 +1,16 @@
 import sys as _sys
-from typing import Any, Callable, Dict, Generator, Mapping, Optional, TextIO, Union
+from typing import Any, Callable, Dict, Generator, Mapping, Optional, TextIO, Union, Collection
 
 __all__ = ["pp"]
 
 DecodedDict = Mapping[str, str]
+DecodedSubDict = Mapping[str, Collection[str]]
 EncodedDict = Mapping[str, Mapping[str, bytes]]
 SpecDict = Mapping[str, Mapping[str, Any]]
 
 
 def pp(
-    doc: Union[DecodedDict, EncodedDict],
+    doc: Union[DecodedDict, DecodedSubDict, EncodedDict],
     spec: SpecDict,
     desc_width: int = 30,
     stream: Optional[TextIO] = None,
@@ -62,18 +63,18 @@ def pp(
         stream = _sys.stdout
 
     if "h" in doc and spec["h"]["max_len"] > 0:
-        _pp_field(doc, spec, desc_width, stream, line_width, "h")
+        _pp_field(doc, spec, desc_width, stream, line_width, "h")  # type: ignore[arg-type]
 
     if "t" in doc:
-        _pp_field(doc, spec, desc_width, stream, line_width, "t")
+        _pp_field(doc, spec, desc_width, stream, line_width, "t")  # type: ignore[arg-type]
 
     if "p" in doc:
-        _pp_field(doc, spec, desc_width, stream, line_width, "p")
+        _pp_field(doc, spec, desc_width, stream, line_width, "p")  # type: ignore[arg-type]
 
     for field_key in sorted(
         [k for k in doc.keys() if isinstance(k, str) and k.isnumeric()], key=int
     ):
-        _pp_field(doc, spec, desc_width, stream, line_width, field_key)
+        _pp_field(doc, spec, desc_width, stream, line_width, field_key)  # type: ignore[arg-type]
 
 
 def _pp_field(
